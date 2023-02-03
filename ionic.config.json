@@ -1,0 +1,7 @@
+{
+  "name": "eyesson-app",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "vue"
+}
