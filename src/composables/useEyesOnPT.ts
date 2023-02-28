@@ -59,7 +59,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                 data: data.slice(2, 3)[0],
                 address: LORAWAN_CANAL_ADDRESS,
                 name: 'LORAWAN_CANAL_HIGH',
-                handler: sendPresetToLorawanHighCanal 
+                handler: sendPresetToLorawanHighCanal
             },
             {
                 data: data.slice(3, 4)[0],
@@ -123,7 +123,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                         const lowCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_LOW') as Register;
 
                         const highCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH') as Register;
-                        
+
                         const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_CANAL_ADDRESS), [parseInt(alertData.value), lowCanal?.data]);
 
                         const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
@@ -133,7 +133,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                         highCanal.data = data[0]; //high
 
                         lowCanal.data = data[1]; //low
-                    
+
                     }
                 }
             ],
@@ -143,7 +143,46 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
     }
 
     async function sendPresetToLorawanLowCanal(): Promise<void> {
+        const alert = await alertController.create({
+            header: 'LORAWAN CANAL BAJO',
+            subHeader: 'modificar canal BAJO',
+            message: 'rango de 0 - 63',
+            inputs: [
+                {
+                    name: 'value',
+                    placeholder: editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_BAJO')?.data,
+                    label: 'nuevo valor',
+                }
+            ],
+            buttons: [
+                {
+                    text: 'Cancel',
+                    role: 'cancel'
+                },
+                {
+                    text: 'Ok',
+                    handler: async (alertData) => {
 
+                        const lowCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_LOW') as Register;
+
+                        const highCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH') as Register;
+
+                        const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_CANAL_ADDRESS), [highCanal.data, parseInt(alertData.value)]);
+
+                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+
+                        const data = new Uint8Array(response.buffer).slice(7, 9);
+
+                        highCanal.data = data[0]; //high
+
+                        lowCanal.data = data[1]; //low
+
+                    }
+                }
+            ],
+        });
+
+        await alert.present();
     }
 
     async function sendPresetToDataRate(): Promise<void> {
