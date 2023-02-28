@@ -41,9 +41,9 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
     const devEui = ref<string>('');
 
     async function sendReadHoldingToEditableRegisters(): Promise<Register[]> {
-       
+
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), THREE_REGISTERS);
-        
+
         const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
 
         const data = new Uint8Array(response.buffer).slice(6, 12);
@@ -59,7 +59,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                 data: data.slice(2, 3)[0],
                 address: LORAWAN_CANAL_ADDRESS,
                 name: 'LORAWAN_CANAL_HIGH',
-                handler: sendPresetToReportInterval
+                handler: sendPresetToLorawanHighCanal 
             },
             {
                 data: data.slice(3, 4)[0],
@@ -71,22 +71,116 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                 data: _parseData(data.slice(4)),
                 address: LORAWAN_DATA_RATE_ADDRESS,
                 name: 'LORAWAN_DATA_RATE',
-                handler: sendPresetToReportInterval
+                handler: sendPresetToDataRate
             }
         ];
 
-      return registers; 
+        return registers;
     }
 
     async function sendReadHoldingToDevEui(): Promise<string> {
-       
+
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(DEV_EUI_INITIAL_ADDRESS), EIGHT_REGISTERS);
-        
+
         const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
 
         const data = new Uint8Array(response.buffer).slice(6, 22);
 
         return new TextDecoder().decode(data);
+    }
+    /*
+        CANAL INICIAL <CANAL INICIAL LORAWAN>
+            DIRECCION = 4005 <PARTE ALTA DEL REGISTRO>
+            TIPO DE DATO = ENTERO 8 BITS
+            RANGO = 0 - 63  
+  
+        CANAL FINAL <CANAL FINAL LORAWAN>
+            DIRECCION = 4005 <PARTE BAJA DEL REGISTRO>
+            TIPO DE DATO = ENTERO 8 BITS
+            RANGO = 0 - 63
+    */
+    async function sendPresetToLorawanHighCanal(): Promise<void> {
+        const alert = await alertController.create({
+            header: 'LORAWAN CANAL ALTO',
+            subHeader: 'modificar canal alto',
+            message: 'rango de 0 - 63',
+            inputs: [
+                {
+                    name: 'value',
+                    placeholder: editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH')?.data,
+                    label: 'nuevo valor',
+                }
+            ],
+            buttons: [
+                {
+                    text: 'Cancel',
+                    role: 'cancel'
+                },
+                {
+                    text: 'Ok',
+                    handler: async (alertData) => {
+
+                        const lowCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_LOW') as Register;
+
+                        const highCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH') as Register;
+                        
+                        const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_CANAL_ADDRESS), [parseInt(alertData.value), lowCanal?.data]);
+
+                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+
+                        const data = new Uint8Array(response.buffer).slice(7, 9);
+
+                        highCanal.data = data[0]; //high
+
+                        lowCanal.data = data[1]; //low
+                    
+                    }
+                }
+            ],
+        });
+
+        await alert.present();
+    }
+
+    async function sendPresetToLorawanLowCanal(): Promise<void> {
+
+    }
+
+    async function sendPresetToDataRate(): Promise<void> {
+        const alert = await alertController.create({
+            header: 'DATA_RATE',
+            subHeader: 'modificar frecuencia de datos',
+            message: 'rango de 0 - 5',
+            inputs: [
+                {
+                    name: 'value',
+                    placeholder: editableRegisters.value.find(r => r.name == 'LORAWAN_DATA_RATE')?.data,
+                    label: 'nuevo valor',
+                }
+            ],
+            buttons: [
+                {
+                    text: 'Cancel',
+                    role: 'cancel'
+                },
+                {
+                    text: 'Ok',
+                    handler: async (alertData) => {
+                        const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_DATA_RATE_ADDRESS), toByteArray(parseInt(alertData.value)));
+
+                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+
+                        const data = new Uint8Array(response.buffer).slice(7, 9);
+
+                        const register = editableRegisters.value.find(r => r.name == 'LORAWAN_DATA_RATE') as Register;
+
+                        register.data = _parseData(data);
+                    }
+                }
+            ],
+        });
+
+        await alert.present();
     }
 
     async function sendPresetToReportInterval(): Promise<void> {
@@ -110,11 +204,11 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                     text: 'Ok',
                     handler: async (alertData) => {
                         const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), toByteArray(parseInt(alertData.value)));
-                        
-                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame); 
-                    
+
+                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+
                         const data = new Uint8Array(response.buffer).slice(7, 9);
-                        
+
                         const register = editableRegisters.value.find(r => r.name == 'REPORT_INTERVAL') as Register;
 
                         register.data = _parseData(data);
@@ -138,7 +232,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
         editableRegisters.value.push(...registers);
 
-        devEui.value = devEuiValue; 
+        devEui.value = devEuiValue;
 
     });
 
