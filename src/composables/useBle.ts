@@ -88,13 +88,12 @@ export function useBle() {
         BleClient.connect(deviceId, () => 
             _changeConnectionState(deviceId, 'DISCONNECTED'))
             .then(() => _changeConnectionState(deviceId, 'CONNECTED'))
-            .catch(async () => _changeConnectionState(deviceId, 'DISCONNECTED'));
+            .catch(() => _changeConnectionState(deviceId, 'DISCONNECTED'));
     }
 
     function disconnect(deviceId: string): void {
         BleClient.disconnect(deviceId).then(() => _changeConnectionState(deviceId, 'DISCONNECTED'));
         connectedDevices.value = connectedDevices.value?.filter(device => device.deviceId != deviceId);
-        //avaliableDevicesStates.value[deviceId] = 'DISCONNECTED';
     }
 
     async function listServices(deviceId: string): Promise<void> {
