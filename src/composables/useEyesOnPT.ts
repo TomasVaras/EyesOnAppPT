@@ -14,7 +14,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         handler: () => Promise<void>
     };
 
-    const { listenToNotifications, writeToCharacteristic } = useBle();
+    const { writeToCharacteristic, writeToCharacteristicAndWaitForResponse } = useBle();
 
     const { toByteArray, readHoldingDataFrame, presetDataFrame } = useModbus();
 
@@ -57,7 +57,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
     const devEui = ref<string>('');
 
-    function catchRegisters(): void {
+    /*function catchRegisters(): void {
         listenToNotifications(DEVICE_ID, SERVICE_UUID_CHAR, NOTIFICATION_UUID_CHAR, (value) => {
             const modbusResponse = new Uint8Array(value.buffer);
             switch (actualRegister.value) {
@@ -90,11 +90,13 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                         }
                     ];
                     editableRegisters.value.push(...registers);
+                    registerHandlers.value[REGISTERS.EDITABLE_REGISTERS].visited = true;
                 } break;
 
                 case REGISTERS.DEV_EUI: {
                     const data = modbusResponse.slice(6, 22);
                     devEui.value = new TextDecoder().decode(data);
+                    
                 } break;
 
                 case REGISTERS.REPORT_INTERVAL: {
@@ -104,16 +106,45 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                 } break;
             }
         });
-    }
+    }*/
 
-    function sendReadHoldingToEditableRegisters(): void {
-        _changeRegister('EDITABLE_REGISTERS');
+    async function sendReadHoldingToEditableRegisters(): Promise<void> {
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), THREE_REGISTERS);
-        writeToCharacteristic(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, dataFrame);
+        //writeToCharacteristic(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, dataFrame);
+        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+
+        const data = new Uint8Array(response.buffer).slice(6, 12);
+
+        const registers: Register[] = [
+            {
+                data: _parseData(data.slice(0, 2)),
+                address: REPORT_INTERVAL_ADDRESS,
+                name: 'REPORT_INTERVAL',
+                handler: sendPresetToReportInterval
+            },
+            {
+                data: data.slice(2, 3)[0],
+                address: LORAWAN_CANAL_ADDRESS,
+                name: 'LORAWAN_CANAL_HIGH',
+                handler: sendPresetToReportInterval
+            },
+            {
+                data: data.slice(3, 4)[0],
+                address: LORAWAN_CANAL_ADDRESS,
+                name: 'LORAWAN_CANAL_LOW',
+                handler: sendPresetToReportInterval
+            },
+            {
+                data: _parseData(data.slice(4)),
+                address: LORAWAN_DATA_RATE_ADDRESS,
+                name: 'LORAWAN_DATA_RATE',
+                handler: sendPresetToReportInterval
+            }
+        ];
+        editableRegisters.value.push(...registers);
     }
 
     function sendReadHoldingToDevEui(): void {
-        _changeRegister('DEV_EUI');
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(DEV_EUI_INITIAL_ADDRESS), EIGHT_REGISTERS);
         writeToCharacteristic(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, dataFrame);
     }
@@ -158,9 +189,11 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
     }
 
     onMounted(() => {
-        catchRegisters();
 
-        let index = 0;
+        sendReadHoldingToEditableRegisters();
+        //catchRegisters();
+
+        /*let index = 0;
 
         const registersToCall = [sendReadHoldingToEditableRegisters, sendReadHoldingToDevEui];
 
@@ -174,12 +207,11 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                 index = 0;
                 clearInterval(registerCallInterval);
             }
-        }, 2 * 1000);
+        }, 2 * 1000);*/
     });
 
     return {
         editableRegisters,
-        devEui,
-        sendPresetToReportInterval
+        devEui
     }
 }
