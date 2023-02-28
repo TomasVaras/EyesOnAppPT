@@ -42,7 +42,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
     const devEui = ref<string>('');
 
-    async function sendReadHoldingToEditableRegisters(): Promise<void> {
+    async function sendReadHoldingToEditableRegisters(): Promise<Register[]> {
        
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), THREE_REGISTERS);
         
@@ -77,10 +77,10 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
             }
         ];
 
-        editableRegisters.value.push(...registers);
+      return registers; 
     }
 
-    async function sendReadHoldingToDevEui(): Promise<void> {
+    async function sendReadHoldingToDevEui(): Promise<string> {
        
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(DEV_EUI_INITIAL_ADDRESS), EIGHT_REGISTERS);
         
@@ -88,7 +88,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
         const data = new Uint8Array(response.buffer).slice(6, 22);
 
-        devEui.value = new TextDecoder().decode(data);
+        return new TextDecoder().decode(data);
     }
 
     async function sendPresetToReportInterval(): Promise<void> {
@@ -125,9 +125,16 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         return bytes[0] * 256 + bytes[1];
     }
 
-    onMounted(() => {
-        sendReadHoldingToEditableRegisters();
-        sendReadHoldingToDevEui();
+    onMounted(async () => {
+
+        const registers = await sendReadHoldingToEditableRegisters();
+
+        const devEuiValue = await sendReadHoldingToDevEui();
+
+        editableRegisters.value.push(...registers);
+
+        devEui.value = devEuiValue; 
+
     });
 
     return {
