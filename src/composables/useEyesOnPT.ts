@@ -142,9 +142,9 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         await alert.present();
     }
 
-    async function sendPresetToLorawanLowCanal(): Promise<void> {
+    /*async function sendPresetToLorawanLowCanal(): Promise<void> {
 
-    }
+    }*/
 
     async function sendPresetToDataRate(): Promise<void> {
         const alert = await alertController.create({
