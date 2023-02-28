@@ -128,8 +128,6 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         });
 
         await alert.present();
-        /*const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), ONE_REGISTER);
-        writeToCharacteristic(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, dataFrame);*/
     }
 
     function _parseData(bytes: Uint8Array): number {
