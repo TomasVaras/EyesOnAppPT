@@ -113,7 +113,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                         
                         const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame); 
                     
-                        const data = new Uint8Array(response.buffer).slice(5, 7);
+                        const data = new Uint8Array(response.buffer).slice(7, 9);
                         
                         const register = editableRegisters.value.find(r => r.name == 'REPORT_INTERVAL') as Register;
 

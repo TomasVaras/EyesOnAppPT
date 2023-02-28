@@ -43,7 +43,7 @@
                         <ion-skeleton-text :animated="true" style="width: 50%;"></ion-skeleton-text>
                     </ion-label>
                 </ion-item>
-                <ion-item button @click="sendPresetToReportInterval">
+                <ion-item button>
                     <ion-label>
                         <h1>APP_EUI</h1>
                         <p>753778214125442A</p>
@@ -86,7 +86,7 @@ const deviceId = route.params.id as string;
 
 const { disconnect } = useBle();
 
-const { editableRegisters, devEui, sendPresetToReportInterval } = useEyesOnPT(route.params.id as string, route.params.name as string);
+const { editableRegisters, devEui } = useEyesOnPT(route.params.id as string, route.params.name as string);
 
 onUnmounted(() => disconnect(deviceId))
 </script>
