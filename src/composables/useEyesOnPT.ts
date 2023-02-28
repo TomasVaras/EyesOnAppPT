@@ -16,11 +16,24 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
     const { listenToNotifications, writeToCharacteristic } = useBle();
 
-    const { toByteArray, readHoldingDataFrame, presetDataFrame } = useModbus()
+    const { toByteArray, readHoldingDataFrame, presetDataFrame } = useModbus();
+
+    const REGISTERS = {
+        NONE: "NONE",
+        EDITABLE_REGISTERS: 'EDITABLE_REGISTERS',
+        DEV_EUI: 'DEV_EUI',
+        REPORT_INTERVAL: 'REPORT_INTERVAL'
+    } as const;
+
+    type ObjectValues<T> = T[keyof T];
+
+    type RegisterName = ObjectValues<typeof REGISTERS>;
+
+    const actualRegister = ref<RegisterName>('NONE');
 
     const DEV_EUI_INITIAL_ADDRESS = 3010;
 
-    const EDITABLE_REGISTERS_ARRAY_LENGHT = 14;
+    //const EDITABLE_REGISTERS_ARRAY_LENGHT = 14;
 
     const REPORT_INTERVAL_ADDRESS = 4004;
 
@@ -28,7 +41,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
     const LORAWAN_DATA_RATE_ADDRESS = 4006;
 
-    const ONE_REGISTER = [0x00, 0x01];
+    //const ONE_REGISTER = [0x00, 0x01];
 
     const THREE_REGISTERS = [0x00, 0x03];
 
@@ -46,61 +59,67 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
     function catchRegisters(): void {
         listenToNotifications(DEVICE_ID, SERVICE_UUID_CHAR, NOTIFICATION_UUID_CHAR, (value) => {
-
             const modbusResponse = new Uint8Array(value.buffer);
+            switch (actualRegister.value) {
+                case REGISTERS.EDITABLE_REGISTERS: {
+                    const data = modbusResponse.slice(6, 12);
+                    const registers: Register[] = [
+                        {
+                            data: _parseData(data.slice(0, 2)),
+                            address: REPORT_INTERVAL_ADDRESS,
+                            name: 'REPORT_INTERVAL',
+                            handler: sendPresetToReportInterval
+                        },
+                        {
+                            data: data.slice(2, 3)[0],
+                            address: LORAWAN_CANAL_ADDRESS,
+                            name: 'LORAWAN_CANAL_HIGH',
+                            handler: sendPresetToReportInterval
+                        },
+                        {
+                            data: data.slice(3, 4)[0],
+                            address: LORAWAN_CANAL_ADDRESS,
+                            name: 'LORAWAN_CANAL_LOW',
+                            handler: sendPresetToReportInterval
+                        },
+                        {
+                            data: _parseData(data.slice(4)),
+                            address: LORAWAN_DATA_RATE_ADDRESS,
+                            name: 'LORAWAN_DATA_RATE',
+                            handler: sendPresetToReportInterval
+                        }
+                    ];
+                    editableRegisters.value.push(...registers);
+                } break;
 
-            if (modbusResponse.length == EDITABLE_REGISTERS_ARRAY_LENGHT) {
+                case REGISTERS.DEV_EUI: {
+                    const data = modbusResponse.slice(6, 22);
+                    devEui.value = new TextDecoder().decode(data);
+                } break;
 
-                const data = modbusResponse.slice(6, 12);
-
-                const registers: Register[] = [
-                    {
-                        data: _parseData(data.slice(0, 2)),
-                        address: REPORT_INTERVAL_ADDRESS,
-                        name: 'REPORT_INTERVAL',
-                        handler: sendPresetToReportInterval
-                    },
-                    {
-                        data: data.slice(2, 3)[0],
-                        address: LORAWAN_CANAL_ADDRESS,
-                        name: 'LORAWAN_CANAL_HIGH',
-                        handler: sendPresetToReportInterval
-                    },
-                    {
-                        data: data.slice(3, 4)[0],
-                        address: LORAWAN_CANAL_ADDRESS,
-                        name: 'LORAWAN_CANAL_LOW',
-                        handler: sendPresetToReportInterval
-                    },
-                    {
-                        data: _parseData(data.slice(4)),
-                        address: LORAWAN_DATA_RATE_ADDRESS,
-                        name: 'LORAWAN_DATA_RATE',
-                        handler: sendPresetToReportInterval
-                    }
-                ]
-
-                editableRegisters.value.push(...registers);
-
-            } else {
-                const data = modbusResponse.slice(6, 22);
-
-                devEui.value = new TextDecoder().decode(data);
+                case REGISTERS.REPORT_INTERVAL: {
+                    const data = modbusResponse.slice(6, 8);
+                    const register = editableRegisters.value.find(r => r.name == REGISTERS.REPORT_INTERVAL) as Register;
+                    register.data = _parseData(data);
+                } break;
             }
         });
     }
 
     function sendReadHoldingToEditableRegisters(): void {
+        _changeRegister('EDITABLE_REGISTERS');
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), THREE_REGISTERS);
         writeToCharacteristic(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, dataFrame);
     }
 
     function sendReadHoldingToDevEui(): void {
+        _changeRegister('DEV_EUI');
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(DEV_EUI_INITIAL_ADDRESS), EIGHT_REGISTERS);
         writeToCharacteristic(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, dataFrame);
     }
 
     async function sendPresetToReportInterval(): Promise<void> {
+        _changeRegister('REPORT_INTERVAL');
         const alert = await alertController.create({
             header: 'REPORT_INTERVAL',
             subHeader: 'modificar intervalo de reportes',
@@ -132,6 +151,10 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
     function _parseData(bytes: Uint8Array): number {
         return bytes[0] * 256 + bytes[1];
+    }
+
+    function _changeRegister(name: RegisterName) {
+        actualRegister.value = name;
     }
 
     onMounted(() => {
