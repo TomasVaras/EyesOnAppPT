@@ -114,7 +114,23 @@ export function useBle() {
         await BleClient.startNotifications(deviceId, service, characteristic, callback);
     }
 
+    async function writeToCharacteristicAndWaitForResponse(deviceId: string, service: string, writableChar: string, notiChar: string, data: Array<number>): Promise<DataView> {
+
+        const responsePromise = new Promise<DataView>(resolve => {
+            listenToNotifications(deviceId, service, notiChar, value => {
+                resolve(value);
+            });
+        });
+
+        await writeToCharacteristic(deviceId, service, writableChar, data);
+
+        const response = await responsePromise;
+
+        return response;
+    }
+
     return {
+        writeToCharacteristicAndWaitForResponse,
         getConnectedDevices,
         listenToNotifications,
         writeToCharacteristic,
