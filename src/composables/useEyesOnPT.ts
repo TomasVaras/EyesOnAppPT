@@ -14,7 +14,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         handler: () => Promise<void>
     };
 
-    const { writeToCharacteristic, writeToCharacteristicAndWaitForResponse } = useBle();
+    const { writeToCharacteristicAndWaitForResponse } = useBle();
 
     const { toByteArray, readHoldingDataFrame, presetDataFrame } = useModbus();
 
@@ -37,8 +37,6 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
     const NOTIFICATION_UUID_CHAR = numberToUUID(0xffe4);
 
     const editableRegisters = ref<Register[]>([]);
-
-    //visited registersg
 
     const devEui = ref<string>('');
 
@@ -110,9 +108,16 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                 },
                 {
                     text: 'Ok',
-                    handler: (alertData) => {
+                    handler: async (alertData) => {
                         const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), toByteArray(parseInt(alertData.value)));
-                        writeToCharacteristic(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, dataFrame);
+                        
+                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame); 
+                    
+                        const data = new Uint8Array(response.buffer).slice(5, 7);
+                        
+                        const register = editableRegisters.value.find(r => r.name == 'REPORT_INTERVAL') as Register;
+
+                        register.data = _parseData(data);
                     }
                 }
             ],
