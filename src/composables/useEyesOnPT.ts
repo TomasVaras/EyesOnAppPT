@@ -55,6 +55,8 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
     const editableRegisters = ref<Register[]>([]);
 
+    //visited registersg
+
     const devEui = ref<string>('');
 
     function catchRegisters(): void {
