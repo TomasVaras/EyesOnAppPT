@@ -4,11 +4,19 @@ import { RouteRecordRaw } from 'vue-router';
 const routes: Array<RouteRecordRaw> = [
   {
     path: '',
-    redirect: '/folder/Inbox'
+    redirect: '/sensor/EyesOnPT'
   },
   {
-    path: '/folder/:id',
-    component: () => import ('../views/FolderPage.vue')
+    path: '/sensor/:filter',
+    component: () => import ('../views/SensorListView.vue')
+  },
+  {
+    path: '/sensor/registers/:name/:id',
+    component: () => import ('../views/ListRegisters.vue')
+  },
+  {
+    path: '/sensor/connected-devices',
+    component: () => import ('../views/ListConnectedView.vue')
   }
 ]
 
