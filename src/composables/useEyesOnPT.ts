@@ -153,6 +153,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                     name: 'value',
                     placeholder: editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_BAJO')?.data,
                     label: 'nuevo valor',
+                    type: 'number'
                 }
             ],
             buttons: [
@@ -196,6 +197,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                     name: 'value',
                     placeholder: editableRegisters.value.find(r => r.name == 'LORAWAN_DATA_RATE')?.data,
                     label: 'nuevo valor',
+                    type: 'number'
                 }
             ],
             buttons: [
@@ -233,6 +235,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                     name: 'value',
                     placeholder: editableRegisters.value.find(r => r.name == 'REPORT_INTERVAL')?.data,
                     label: 'nuevo valor',
+                    type: 'number'
                 }
             ],
             buttons: [

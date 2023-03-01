@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'io.ionic.starter',
-  appName: 'eyesson-app',
+  appName: 'EyesOnPT',
   webDir: 'dist',
   bundledWebRuntime: false
 };

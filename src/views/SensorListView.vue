@@ -30,7 +30,7 @@
         </ion-item>
       </ion-list>
       <ion-fab vertical="bottom" horizontal="end" slot="fixed">
-        <ion-fab-button @click="scan(getSensorNameFilter())">
+        <ion-fab-button color="primary" @click="scan(getSensorNameFilter())">
           <ion-icon v-if="!isScanning" :icon="search"></ion-icon>
           <ion-spinner v-else name="crescent"></ion-spinner>
         </ion-fab-button>

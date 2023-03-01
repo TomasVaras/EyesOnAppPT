@@ -4,9 +4,9 @@ import {
     numberToUUID, 
     BleService, 
     numbersToDataView, 
-    BleDevice 
+    //BleDevice 
 } from '@capacitor-community/bluetooth-le';
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 
 export function useBle() {
 
@@ -26,7 +26,7 @@ export function useBle() {
 
     const results = ref<ScanResult[]>([]);
 
-    const connectedDevices = ref<BleDevice[]>([]);
+    //const connectedDevices = ref<BleDevice[]>([]);
 
     const services = ref<BleService[]>([]);
 
@@ -67,10 +67,10 @@ export function useBle() {
         }
     }
 
-    async function getConnectedDevices() {
+    /*async function getConnectedDevices() {
         await BleClient.initialize();
         connectedDevices.value.push(... await BleClient.getConnectedDevices([]));
-    }
+    }*/
 
     function bytesToPSI(buffer: ArrayBuffer): number {
         const bytes = [...new Uint8Array(buffer.slice(0, 2))];
@@ -93,7 +93,7 @@ export function useBle() {
 
     function disconnect(deviceId: string): void {
         BleClient.disconnect(deviceId).then(() => _changeConnectionState(deviceId, 'DISCONNECTED'));
-        connectedDevices.value = connectedDevices.value?.filter(device => device.deviceId != deviceId);
+        //connectedDevices.value = connectedDevices.value?.filter(device => device.deviceId != deviceId);
     }
 
     async function listServices(deviceId: string): Promise<void> {
@@ -130,7 +130,7 @@ export function useBle() {
 
     return {
         writeToCharacteristicAndWaitForResponse,
-        getConnectedDevices,
+        //getConnectedDevices,
         listenToNotifications,
         writeToCharacteristic,
         readCharacteristic,
@@ -140,7 +140,7 @@ export function useBle() {
         bytesToPSI,
         scan,
         avaliableDevicesStates,
-        connectedDevices,
+        //connectedDevices,
         services,
         connectionState,
         isScanning,

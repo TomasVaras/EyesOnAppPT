@@ -14,10 +14,10 @@ const routes: Array<RouteRecordRaw> = [
     path: '/sensor/registers/:name/:id',
     component: () => import ('../views/ListRegisters.vue')
   },
-  {
+  /*{
     path: '/sensor/connected-devices',
     component: () => import ('../views/ListConnectedView.vue')
-  }
+  }*/
 ]
 
 const router = createRouter({
