@@ -43,7 +43,13 @@
                         <ion-skeleton-text :animated="true" style="width: 50%;"></ion-skeleton-text>
                     </ion-label>
                 </ion-item>
-                <ion-item button>
+                <ion-item v-for="reg in DEFAULT_REGISTERS">
+                    <ion-label>
+                        <h1>{{ reg.name }}</h1>
+                        <p>{{ reg.value }}</p>
+                    </ion-label>
+                </ion-item>
+                <!--ion-item>
                     <ion-label>
                         <h1>APP_EUI</h1>
                         <p>753778214125442A</p>
@@ -54,7 +60,7 @@
                         <h1>APP_KEY</h1>
                         <p>ACB46E292A52432381A8AF5B14E5E3AE</p>
                     </ion-label>
-                </ion-item>
+                </ion-item-->
             </ion-list>
             <ion-fab vertical="bottom" horizontal="end" slot="fixed">
                 <ion-fab-button @click="copyConfigToClipboard">
@@ -96,11 +102,16 @@ const deviceId = route.params.id as string;
 
 const { disconnect } = useBle();
 
-const { editableRegisters, devEui } = useEyesOnPT(route.params.id as string, route.params.name as string);
+const { editableRegisters, devEui, DEFAULT_REGISTERS } = useEyesOnPT(route.params.id as string, route.params.name as string);
 
 async function copyConfigToClipboard() {
     const onlyRegsData = editableRegisters.value.map(reg => ({ name: reg.name, value: reg.data }));
-    const configs = JSON.stringify(onlyRegsData);
+    onlyRegsData.concat(DEFAULT_REGISTERS);
+    const configInfo = {
+        sensorName: route.params.name,
+        info: onlyRegsData
+    }; 
+    const configs = JSON.stringify(configInfo);
     await Clipboard.write({ string: configs });
 }
 
