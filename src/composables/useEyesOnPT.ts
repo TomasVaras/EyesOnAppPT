@@ -109,6 +109,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                     name: 'value',
                     placeholder: editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH')?.data,
                     label: 'nuevo valor',
+                    type: "number"
                 }
             ],
             buttons: [

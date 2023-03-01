@@ -6,7 +6,7 @@ import {
     numbersToDataView, 
     BleDevice 
 } from '@capacitor-community/bluetooth-le';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 export function useBle() {
 
@@ -26,7 +26,7 @@ export function useBle() {
 
     const results = ref<ScanResult[]>([]);
 
-    const connectedDevices = ref<BleDevice[]>()
+    const connectedDevices = ref<BleDevice[]>([]);
 
     const services = ref<BleService[]>([]);
 
@@ -69,7 +69,7 @@ export function useBle() {
 
     async function getConnectedDevices() {
         await BleClient.initialize();
-        connectedDevices.value?.push(...await BleClient.getConnectedDevices([]));
+        connectedDevices.value.push(... await BleClient.getConnectedDevices([]));
     }
 
     function bytesToPSI(buffer: ArrayBuffer): number {

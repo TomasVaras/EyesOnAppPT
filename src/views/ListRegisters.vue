@@ -56,7 +56,11 @@
                     </ion-label>
                 </ion-item>
             </ion-list>
-            <ion-button @click="copyConfigToClipboard">copiar a portapapeles</ion-button>
+            <ion-fab vertical="bottom" horizontal="end" slot="fixed">
+                <ion-fab-button @click="copyConfigToClipboard">
+                    <ion-icon  :icon="copy"></ion-icon>
+                </ion-fab-button>
+            </ion-fab>
         </ion-content>
     </ion-page>
 </template>
@@ -65,7 +69,9 @@
 import { useEyesOnPT } from '@/composables/useEyesOnPT';
 import { useRoute } from 'vue-router';
 import {
-    IonButton,
+    IonFab,
+    IonFabButton,
+    IonIcon,
     IonListHeader,
     IonSkeletonText,
     IonList,
@@ -79,6 +85,7 @@ import {
     IonTitle,
     IonToolbar,
 } from '@ionic/vue';
+import { copy } from 'ionicons/icons';
 import { onUnmounted } from 'vue';
 import { useBle } from '@/composables/useBle';
 import { Clipboard } from '@capacitor/clipboard';
@@ -92,7 +99,8 @@ const { disconnect } = useBle();
 const { editableRegisters, devEui } = useEyesOnPT(route.params.id as string, route.params.name as string);
 
 async function copyConfigToClipboard() {
-    const configs = JSON.stringify(editableRegisters);
+    const onlyRegsData = editableRegisters.value.map(reg => ({ name: reg.name, value: reg.data }));
+    const configs = JSON.stringify(onlyRegsData);
     await Clipboard.write({ string: configs });
 }
 
