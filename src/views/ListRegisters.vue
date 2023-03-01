@@ -43,24 +43,12 @@
                         <ion-skeleton-text :animated="true" style="width: 50%;"></ion-skeleton-text>
                     </ion-label>
                 </ion-item>
-                <ion-item v-for="reg in DEFAULT_REGISTERS">
+                <ion-item v-for="reg in DEFAULT_REGISTERS" :key="reg.name">
                     <ion-label>
                         <h1>{{ reg.name }}</h1>
                         <p>{{ reg.value }}</p>
                     </ion-label>
                 </ion-item>
-                <!--ion-item>
-                    <ion-label>
-                        <h1>APP_EUI</h1>
-                        <p>753778214125442A</p>
-                    </ion-label>
-                </ion-item>
-                <ion-item>
-                    <ion-label>
-                        <h1>APP_KEY</h1>
-                        <p>ACB46E292A52432381A8AF5B14E5E3AE</p>
-                    </ion-label>
-                </ion-item-->
             </ion-list>
             <ion-fab vertical="bottom" horizontal="end" slot="fixed">
                 <ion-fab-button @click="copyConfigToClipboard">
@@ -95,6 +83,7 @@ import { copy } from 'ionicons/icons';
 import { onUnmounted } from 'vue';
 import { useBle } from '@/composables/useBle';
 import { Clipboard } from '@capacitor/clipboard';
+import { Share } from '@capacitor/share';
 
 const route = useRoute();
 
@@ -105,14 +94,27 @@ const { disconnect } = useBle();
 const { editableRegisters, devEui, DEFAULT_REGISTERS } = useEyesOnPT(route.params.id as string, route.params.name as string);
 
 async function copyConfigToClipboard() {
-    const onlyRegsData = editableRegisters.value.map(reg => ({ name: reg.name, value: reg.data }));
-    onlyRegsData.concat(DEFAULT_REGISTERS);
+
+    const onlyRegsData = editableRegisters.value.map(reg => ({ name: reg.name, value: reg.data })).concat(DEFAULT_REGISTERS);
+
+    onlyRegsData.push({ name: 'DEV_EUI', value: devEui.value });
+
     const configInfo = {
         sensorName: route.params.name,
         info: onlyRegsData
     }; 
+
     const configs = JSON.stringify(configInfo);
+
     await Clipboard.write({ string: configs });
+
+    const { value } = await Clipboard.read();
+
+    await Share.share({
+        title: 'Compartir',
+        text: value,
+        dialogTitle: 'Compartir configuración'
+    });
 }
 
 onUnmounted(() => disconnect(deviceId))
