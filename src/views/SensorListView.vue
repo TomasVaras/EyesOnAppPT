@@ -15,7 +15,10 @@
             <h1>{{ res.device.name }}</h1>
             <p>{{ bytesToPSI(res.manufacturerData!['0'].buffer) + ' psi'/*mepa que es asi*/ }}</p>
           </ion-label>
-          <ion-button slot="end" v-if="avaliableDevicesStates[res.device.deviceId] == 'DISCONNECTED'" @click="connect(res.device.deviceId)">
+          <ion-button :href="`/sensor/registers/${res.device.name}/${res.device.deviceId}`">
+            <ion-icon :icon="arrowForward"></ion-icon> 
+          </ion-button> 
+          <!--ion-button slot="end" v-if="avaliableDevicesStates[res.device.deviceId] == 'DISCONNECTED'" @click="connect(res.device.deviceId)">
             <ion-icon slot="icon-only" :icon="bluetooth"></ion-icon>
           </ion-button>
           <template v-else-if="avaliableDevicesStates[res.device.deviceId] == 'CONNECTED'">
@@ -26,7 +29,7 @@
               <ion-icon slot="icon-only" :icon="open"></ion-icon>
             </ion-button>
           </template>
-          <ion-spinner slot="end" v-else name="crescent"></ion-spinner>
+          <ion-spinner slot="end" v-else name="crescent"></ion-spinner-->
         </ion-item>
       </ion-list>
       <ion-fab vertical="bottom" horizontal="end" slot="fixed">
@@ -58,17 +61,14 @@ import {
   IonFabButton
 } from '@ionic/vue';
 import { useBle } from '@/composables/useBle';
-import { bluetooth, open, close, search } from 'ionicons/icons';
+import { /*bluetooth, open, close,*/ search, arrowForward } from 'ionicons/icons';
 import { useRoute } from 'vue-router';
 //import { onMounted } from 'vue';
 const route = useRoute();
 
 const {
   scan,
-  connect,
   bytesToPSI,
-  disconnect,
-  avaliableDevicesStates,
   results,
   isScanning,
 } = useBle();

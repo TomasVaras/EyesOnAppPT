@@ -1,9 +1,11 @@
-import { useBle } from "./useBle";
 import { numberToUUID } from "@capacitor-community/bluetooth-le";
 import { ref } from "vue";
 import { useModbus } from "./useModbus";
+import { useBle } from "./useBle";
 import { onMounted } from "vue";
 import { alertController } from "@ionic/vue";
+import { useAlerts } from "./useAlerts";
+
 
 export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
@@ -11,12 +13,13 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         name: string,
         address: number,
         data: any,
-        handler: () => Promise<void>
     };
 
-    const { writeToCharacteristicAndWaitForResponse } = useBle();
+    const { writeToCharacteristicAndWaitForResponse, connect } = useBle();
 
     const { toByteArray, readHoldingDataFrame, presetDataFrame } = useModbus();
+
+    const { showError } = useAlerts();
 
     const DEFAULT_REGISTERS = [
         {
@@ -51,7 +54,9 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
     const devEui = ref<string>('');
 
-    async function sendReadHoldingToEditableRegisters(): Promise<Register[]> {
+    const disconnectByUser = ref<boolean>(false);
+
+    async function sendReadHoldingToEditableRegisters(): Promise<void> {
 
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), THREE_REGISTERS);
 
@@ -64,32 +69,28 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                 data: _parseData(data.slice(0, 2)),
                 address: REPORT_INTERVAL_ADDRESS,
                 name: 'REPORT_INTERVAL',
-                handler: sendPresetToReportInterval
             },
             {
                 data: data.slice(2, 3)[0],
                 address: LORAWAN_CANAL_ADDRESS,
                 name: 'LORAWAN_CANAL_HIGH',
-                handler: sendPresetToLorawanHighCanal
             },
             {
                 data: data.slice(3, 4)[0],
                 address: LORAWAN_CANAL_ADDRESS,
                 name: 'LORAWAN_CANAL_LOW',
-                handler: sendPresetToLorawanLowCanal
             },
             {
                 data: _parseData(data.slice(4)),
                 address: LORAWAN_DATA_RATE_ADDRESS,
                 name: 'LORAWAN_DATA_RATE',
-                handler: sendPresetToDataRate
             }
         ];
 
-        return registers;
+        editableRegisters.value = [...registers];
     }
 
-    async function sendReadHoldingToDevEui(): Promise<string> {
+    async function sendReadHoldingToDevEui(): Promise<void> {
 
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(DEV_EUI_INITIAL_ADDRESS), EIGHT_REGISTERS);
 
@@ -97,105 +98,28 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
         const data = new Uint8Array(response.buffer).slice(6, 22);
 
-        return new TextDecoder().decode(data);
-    }
-    /*
-        CANAL INICIAL <CANAL INICIAL LORAWAN>
-            DIRECCION = 4005 <PARTE ALTA DEL REGISTRO>
-            TIPO DE DATO = ENTERO 8 BITS
-            RANGO = 0 - 63  
-  
-        CANAL FINAL <CANAL FINAL LORAWAN>
-            DIRECCION = 4005 <PARTE BAJA DEL REGISTRO>
-            TIPO DE DATO = ENTERO 8 BITS
-            RANGO = 0 - 63
-    */
-    async function sendPresetToLorawanHighCanal(): Promise<void> {
-        const alert = await alertController.create({
-            header: 'LORAWAN CANAL ALTO',
-            subHeader: 'modificar canal alto',
-            message: 'rango de 0 - 63',
-            inputs: [
-                {
-                    name: 'value',
-                    placeholder: editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH')?.data,
-                    label: 'nuevo valor',
-                    type: "number"
-                }
-            ],
-            buttons: [
-                {
-                    text: 'Cancel',
-                    role: 'cancel'
-                },
-                {
-                    text: 'Ok',
-                    handler: async (alertData) => {
-
-                        const lowCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_LOW') as Register;
-
-                        const highCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH') as Register;
-
-                        const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_CANAL_ADDRESS), [parseInt(alertData.value), lowCanal?.data]);
-
-                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
-
-                        const data = new Uint8Array(response.buffer).slice(7, 9);
-
-                        highCanal.data = data[0]; //high
-
-                        lowCanal.data = data[1]; //low
-
-                    }
-                }
-            ],
-        });
-
-        await alert.present();
+        devEui.value = new TextDecoder().decode(data);
     }
 
-    async function sendPresetToLorawanLowCanal(): Promise<void> {
-        const alert = await alertController.create({
-            header: 'LORAWAN CANAL BAJO',
-            subHeader: 'modificar canal BAJO',
-            message: 'rango de 0 - 63',
-            inputs: [
-                {
-                    name: 'value',
-                    placeholder: editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_BAJO')?.data,
-                    label: 'nuevo valor',
-                    type: 'number'
-                }
-            ],
-            buttons: [
-                {
-                    text: 'Cancel',
-                    role: 'cancel'
-                },
-                {
-                    text: 'Ok',
-                    handler: async (alertData) => {
+    async function writeToLorawanCanal(alertData: any, alert: HTMLIonAlertElement, canal: string): Promise<any> {
 
-                        const lowCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_LOW') as Register;
+        const HIGH_LIMIT = 63;
 
-                        const highCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH') as Register;
+        const LOW_LIMIT = 0;
 
-                        const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_CANAL_ADDRESS), [highCanal.data, parseInt(alertData.value)]);
+        const validate = (value: string) => {
 
-                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+            const number = parseInt(value);
 
-                        const data = new Uint8Array(response.buffer).slice(7, 9);
+            if (!isNaN(number) && number < HIGH_LIMIT && number >= LOW_LIMIT) {
+                return number;
+            }
 
-                        highCanal.data = data[0]; //high
+            throw new Error('Valor invalido!');
+        };
 
-                        lowCanal.data = data[1]; //low
+        const dataFrame: number[] = [];
 
-                    }
-                }
-            ],
-        });
-
-        await alert.present();
     }
 
     async function sendPresetToDataRate(): Promise<void> {
@@ -255,42 +179,17 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         await alert.present();
     }
 
-    async function sendPresetToReportInterval(): Promise<void> {
-        const alert = await alertController.create({
-            header: 'REPORT_INTERVAL',
-            subHeader: 'modificar intervalo de reportes',
-            message: 'rango 0 - 65535 SEGUNDOS',
-            inputs: [
-                {
-                    name: 'value',
-                    placeholder: editableRegisters.value.find(r => r.name == 'REPORT_INTERVAL')?.data,
-                    label: 'nuevo valor',
-                    type: 'number'
-                }
-            ],
-            buttons: [
-                {
-                    text: 'Cancel',
-                    role: 'cancel'
-                },
-                {
-                    text: 'Ok',
-                    handler: async (alertData) => {
-                        const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), toByteArray(parseInt(alertData.value)));
+    async function writeReportInterval(value: string): Promise<void> {
+        try {
 
-                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+            const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), toByteArray(parseInt(value)));
 
-                        const data = new Uint8Array(response.buffer).slice(7, 9);
+            await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
 
-                        const register = editableRegisters.value.find(r => r.name == 'REPORT_INTERVAL') as Register;
+        } catch (error: any) {
 
-                        register.data = _parseData(data);
-                    }
-                }
-            ],
-        });
-
-        await alert.present();
+            throw new Error(error.message);
+        }
     }
 
     function _parseData(bytes: Uint8Array): number {
@@ -299,18 +198,29 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
     onMounted(async () => {
 
-        const registers = await sendReadHoldingToEditableRegisters();
+        try {
 
-        const devEuiValue = await sendReadHoldingToDevEui();
+            await connect(DEVICE_ID);
 
-        editableRegisters.value.push(...registers);
+            await sendReadHoldingToEditableRegisters();
 
-        devEui.value = devEuiValue;
+            await sendReadHoldingToDevEui();
+
+        } catch (error: any) {
+
+            console.log('anashie');
+
+            showError(error);
+
+        }
 
     });
 
     return {
+        writeReportInterval,
+        sendReadHoldingToEditableRegisters,
         DEFAULT_REGISTERS,
+        disconnectByUser,
         editableRegisters,
         devEui
     }

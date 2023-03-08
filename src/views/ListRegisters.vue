@@ -16,7 +16,7 @@
                     </ion-label>
                 </ion-list-header>
                 <template v-if="editableRegisters.length != 0">
-                    <ion-item v-for="(reg, index) in editableRegisters" button :key="index" @click="reg.handler">
+                    <ion-item v-for="(reg, index) in editableRegisters" button :key="index" @click="openModal(reg.name)">
                         <ion-label>
                             <h1>{{ reg.name }}</h1>
                             <p>valor: {{ reg.data }}</p>
@@ -52,9 +52,10 @@
             </ion-list>
             <ion-fab vertical="bottom" horizontal="end" slot="fixed">
                 <ion-fab-button @click="copyConfigToClipboard">
-                    <ion-icon  :icon="copy"></ion-icon>
+                    <ion-icon :icon="copy"></ion-icon>
                 </ion-fab-button>
             </ion-fab>
+            <report-interval :onWillDismiss="sendReadHoldingToEditableRegisters" :deviceId="deviceId" :deviceName="deviceName" ref="interval"></report-interval>
         </ion-content>
     </ion-page>
 </template>
@@ -77,21 +78,32 @@ import {
     IonHeader,
     IonPage,
     IonTitle,
-    IonToolbar,
+    IonToolbar
 } from '@ionic/vue';
 import { copy } from 'ionicons/icons';
-import { onUnmounted } from 'vue';
+import { onUnmounted, ref } from 'vue';
 import { useBle } from '@/composables/useBle';
 import { Clipboard } from '@capacitor/clipboard';
 import { Share } from '@capacitor/share';
+import ReportInterval from '@/components/ReportInterval.vue';
 
 const route = useRoute();
 
 const deviceId = route.params.id as string;
 
+const deviceName = route.params.name as string
+
 const { disconnect } = useBle();
 
-const { editableRegisters, devEui, DEFAULT_REGISTERS } = useEyesOnPT(route.params.id as string, route.params.name as string);
+const { editableRegisters, devEui, DEFAULT_REGISTERS, disconnectByUser, sendReadHoldingToEditableRegisters } = useEyesOnPT(deviceId, deviceName);
+
+const interval = ref<InstanceType<typeof ReportInterval> | null>(null);
+
+function openModal(name: string): void {
+    if(name == 'REPORT_INTERVAL') {
+        if(interval.value) { interval.value.showModal = true; }
+    }
+}
 
 async function copyConfigToClipboard() {
 
@@ -102,7 +114,7 @@ async function copyConfigToClipboard() {
     const configInfo = {
         sensorName: route.params.name,
         info: onlyRegsData
-    }; 
+    };
 
     const configs = JSON.stringify(configInfo);
 
@@ -117,5 +129,8 @@ async function copyConfigToClipboard() {
     });
 }
 
-onUnmounted(() => disconnect(deviceId))
+onUnmounted(() => {
+    disconnectByUser.value = true;
+    disconnect(deviceId);
+})
 </script>

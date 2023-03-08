@@ -32,9 +32,7 @@ export function useModbus() {
         }
       }
     }
-
-    console.log(crc);
-
+    
     const lowByte = crc & 0xff;
     const highByte = (crc >> 8) & 0xff;
 
