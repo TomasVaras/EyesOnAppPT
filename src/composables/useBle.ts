@@ -1,9 +1,9 @@
-import { 
-    BleClient, 
-    ScanResult, 
-    numberToUUID, 
-    BleService, 
-    numbersToDataView, 
+import {
+    BleClient,
+    ScanResult,
+    numberToUUID,
+    BleService,
+    numbersToDataView,
     //BleDevice 
 } from '@capacitor-community/bluetooth-le';
 import { ref } from 'vue';
@@ -67,10 +67,12 @@ export function useBle() {
         }
     }
 
-    /*async function getConnectedDevices() {
+    
+
+    async function isConnected(deviceId: string): Promise<boolean> {
         await BleClient.initialize();
-        connectedDevices.value.push(... await BleClient.getConnectedDevices([]));
-    }*/
+        return (await BleClient.getConnectedDevices([])).some(device => device.deviceId = deviceId);
+    }
 
     function bytesToPSI(buffer: ArrayBuffer): number {
         const bytes = [...new Uint8Array(buffer.slice(0, 2))];
@@ -78,14 +80,22 @@ export function useBle() {
         return psi;
     }
 
+    function batteryCharge(buffer: ArrayBuffer): number {
+        console.log(new Uint8Array(buffer));
+        const bytes = [...new Uint8Array(buffer.slice(12))];
+        console.log(bytes);
+        const charge = (bytes[0] * 256 + bytes[1]) / 1000;
+        return charge;
+    }
+
     function _changeConnectionState(deviceId: string, state: ConnectionState): void {
         //connectionState.value = state;
-        avaliableDevicesStates.value[deviceId] = state; 
+        avaliableDevicesStates.value[deviceId] = state;
     }
 
     function connect(deviceId: string): void {
         _changeConnectionState(deviceId, 'WAITING');
-        BleClient.connect(deviceId, () => 
+        BleClient.connect(deviceId, () =>
             _changeConnectionState(deviceId, 'DISCONNECTED'))
             .then(() => _changeConnectionState(deviceId, 'CONNECTED'))
             .catch(() => _changeConnectionState(deviceId, 'DISCONNECTED'));
@@ -114,24 +124,42 @@ export function useBle() {
     }
 
     async function writeToCharacteristicAndWaitForResponse(deviceId: string, service: string, writableChar: string, notiChar: string, data: Array<number>): Promise<DataView> {
-
-        const responsePromise = new Promise<DataView>(resolve => {
-            listenToNotifications(deviceId, service, notiChar, value => {
-                resolve(value);
+        try {
+            const responsePromise = new Promise<DataView>(resolve => {
+                listenToNotifications(deviceId, service, notiChar, value => {
+                    resolve(value);
+                });
             });
-        });
 
-        await writeToCharacteristic(deviceId, service, writableChar, data);
+            const writePromise = writeToCharacteristic(deviceId, service, writableChar, data);
 
-        const response = await responsePromise;
+            const timeoutPromise = new Promise<DataView>((_, reject) => {
+                setTimeout(() => {
+                    reject(new Error(`Timeout after ${5000}ms`));
+                }, 5000);
+            });
 
-        return response;
+            await Promise.race([writePromise, timeoutPromise]);
+
+            const response = await Promise.race([responsePromise, timeoutPromise]);
+
+            if (response instanceof DataView) {
+                await BleClient.stopNotifications(deviceId, service, notiChar);
+                return response;
+            } else {
+                throw response; // Rethrow the timeout error
+            }
+        } catch (error: any) {
+            throw new Error(error.message);
+        }
     }
 
     return {
         writeToCharacteristicAndWaitForResponse,
         //getConnectedDevices,
+        batteryCharge,
         listenToNotifications,
+        isConnected,
         writeToCharacteristic,
         readCharacteristic,
         listServices,
