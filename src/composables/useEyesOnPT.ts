@@ -13,13 +13,12 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         name: string,
         address: number,
         data: any,
+        handler: () => void
     };
 
     const { writeToCharacteristicAndWaitForResponse, isConnected } = useBle();
 
     const { toByteArray, readHoldingDataFrame, presetDataFrame } = useModbus();
-
-    const { showError } = useAlerts();
 
     const DEFAULT_REGISTERS = [
         {
@@ -103,7 +102,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
         } catch (error: any) {
 
-            throw new Error(error.message);
+            throw new Error('Error al intentar escribir');
 
         }
 
@@ -120,7 +119,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         return false;
     }
 
-    async function sendReadHoldingToDevEui(): Promise<void> {
+    async function sendReadHoldingToDevEui(): Promise<string> {
 
         const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(DEV_EUI_INITIAL_ADDRESS), EIGHT_REGISTERS);
 
@@ -128,7 +127,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
         const data = new Uint8Array(response.buffer).slice(6, 22);
 
-        devEui.value = new TextDecoder().decode(data);
+        return new TextDecoder().decode(data);
     }
 
     async function sendPresetToLorawanHighCanal(): Promise<void> {
@@ -198,7 +197,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                             alert.dismiss();
 
                             await Toast.show({
-                                text: error.message,
+                                text: 'Error al intentar escribir',
                                 position: 'bottom'
                             });
 
@@ -279,7 +278,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                             alert.dismiss();
 
                             await Toast.show({
-                                text: error.message,
+                                text: 'Error al intentar escribir',
                                 position: 'bottom'
                             });
 
@@ -349,7 +348,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                             alert.dismiss();
 
                             await Toast.show({
-                                text: error.message,
+                                text: 'Error al intentar escribir',
                                 position: 'bottom'
                             });
 
@@ -403,7 +402,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                             alert.dismiss();
 
                             await Toast.show({
-                                text: error.message,
+                                text: 'Error al intentar escribir',
                                 position: 'bottom'
                             });
 
@@ -482,7 +481,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                             alert.dismiss();
 
                             await Toast.show({
-                                text: error.message,
+                                text: 'Error al intentar escribir.',
                                 position: 'bottom'
                             });
 
@@ -528,10 +527,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
     });
 
     return {
-        writeReportInterval,
-        sendReadHoldingToEditableRegisters,
         DEFAULT_REGISTERS,
-        disconnectByUser,
         editableRegisters,
         devEui
     }
