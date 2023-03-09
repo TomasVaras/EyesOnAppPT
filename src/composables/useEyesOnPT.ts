@@ -4,8 +4,8 @@ import { useModbus } from "./useModbus";
 import { useBle } from "./useBle";
 import { onMounted } from "vue";
 import { alertController } from "@ionic/vue";
-import { useAlerts } from "./useAlerts";
-
+import router from "@/router";
+import { Toast } from '@capacitor/toast';
 
 export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
@@ -15,7 +15,7 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         data: any,
     };
 
-    const { writeToCharacteristicAndWaitForResponse, connect } = useBle();
+    const { writeToCharacteristicAndWaitForResponse, isConnected } = useBle();
 
     const { toByteArray, readHoldingDataFrame, presetDataFrame } = useModbus();
 
@@ -50,44 +50,74 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
     const NOTIFICATION_UUID_CHAR = numberToUUID(0xffe4);
 
+    const LOW_LIMIT = 0;
+
+    const REPORT_INTERVAL_LIMIT = 65535;
+
+    const LORAWAN_CANAL_LIMIT = 63;
+
+    const DATA_RATE_LIMIT = 5;
+
     const editableRegisters = ref<Register[]>([]);
 
     const devEui = ref<string>('');
 
-    const disconnectByUser = ref<boolean>(false);
+    async function sendReadHoldingToEditableRegisters(): Promise<Register[]> {
 
-    async function sendReadHoldingToEditableRegisters(): Promise<void> {
+        try {
 
-        const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), THREE_REGISTERS);
+            const dataFrame = readHoldingDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), THREE_REGISTERS);
 
-        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+            const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
 
-        const data = new Uint8Array(response.buffer).slice(6, 12);
+            const data = new Uint8Array(response.buffer).slice(6, 12);
 
-        const registers: Register[] = [
-            {
-                data: _parseData(data.slice(0, 2)),
-                address: REPORT_INTERVAL_ADDRESS,
-                name: 'REPORT_INTERVAL',
-            },
-            {
-                data: data.slice(2, 3)[0],
-                address: LORAWAN_CANAL_ADDRESS,
-                name: 'LORAWAN_CANAL_HIGH',
-            },
-            {
-                data: data.slice(3, 4)[0],
-                address: LORAWAN_CANAL_ADDRESS,
-                name: 'LORAWAN_CANAL_LOW',
-            },
-            {
-                data: _parseData(data.slice(4)),
-                address: LORAWAN_DATA_RATE_ADDRESS,
-                name: 'LORAWAN_DATA_RATE',
-            }
-        ];
+            const registers: Register[] = [
+                {
+                    data: _parseData(data.slice(0, 2)),
+                    address: REPORT_INTERVAL_ADDRESS,
+                    name: 'REPORT_INTERVAL',
+                    handler: sendPresetToReportInterval
+                },
+                {
+                    data: data.slice(2, 3)[0],
+                    address: LORAWAN_CANAL_ADDRESS,
+                    name: 'LORAWAN_CANAL_HIGH',
+                    handler: sendPresetToLorawanHighCanal
+                },
+                {
+                    data: data.slice(3, 4)[0],
+                    address: LORAWAN_CANAL_ADDRESS,
+                    name: 'LORAWAN_CANAL_LOW',
+                    handler: sendPresetToLorawanLowCanal
+                },
+                {
+                    data: _parseData(data.slice(4)),
+                    address: LORAWAN_DATA_RATE_ADDRESS,
+                    name: 'LORAWAN_DATA_RATE',
+                    handler: sendPresetToDataRate
+                }
+            ];
 
-        editableRegisters.value = [...registers];
+            return registers;
+
+        } catch (error: any) {
+
+            throw new Error(error.message);
+
+        }
+
+    }
+
+    function validateWriteValue(lowLimit: number, highLimit: number, value: string): boolean {
+
+        const parsedValue = parseInt(value);
+
+        if (!isNaN(parsedValue) && parsedValue <= highLimit && parsedValue >= lowLimit) {
+            return true;
+        }
+
+        return false;
     }
 
     async function sendReadHoldingToDevEui(): Promise<void> {
@@ -101,24 +131,165 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         devEui.value = new TextDecoder().decode(data);
     }
 
-    async function writeToLorawanCanal(alertData: any, alert: HTMLIonAlertElement, canal: string): Promise<any> {
+    async function sendPresetToLorawanHighCanal(): Promise<void> {
+        const alert = await alertController.create({
+            header: 'LORAWAN CANAL ALTO',
+            subHeader: 'modificar canal alto',
+            message: 'rango de 0 - 63',
+            inputs: [
+                {
+                    name: 'value',
+                    placeholder: editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH')?.data,
+                    label: 'nuevo valor',
+                    type: "number"
+                }
+            ],
+            buttons: [
+                {
+                    text: 'Cancel',
+                    role: 'cancel'
+                },
+                {
+                    text: 'Ok',
+                    handler: async (alertData) => {
+                        try {
 
-        const HIGH_LIMIT = 63;
+                            if (await isConnected(DEVICE_ID)) {
 
-        const LOW_LIMIT = 0;
+                                if (validateWriteValue(LOW_LIMIT, LORAWAN_CANAL_LIMIT, alertData.value)) {
 
-        const validate = (value: string) => {
+                                    const lowCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_LOW') as Register;
 
-            const number = parseInt(value);
+                                    const highCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH') as Register;
 
-            if (!isNaN(number) && number < HIGH_LIMIT && number >= LOW_LIMIT) {
-                return number;
-            }
+                                    const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_CANAL_ADDRESS), [parseInt(alertData.value), lowCanal?.data]);
 
-            throw new Error('Valor invalido!');
-        };
+                                    const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
 
-        const dataFrame: number[] = [];
+                                    const data = new Uint8Array(response.buffer).slice(7, 9);
+
+                                    highCanal.data = data[0]; //high
+
+                                    lowCanal.data = data[1]; //low
+
+                                } else {
+
+                                    alert.message = 'Valor invalido!';
+
+                                    return false;
+
+                                }
+
+
+                            } else {
+
+                                alert.dismiss();
+
+                                await Toast.show({
+                                    text: 'Se perdio la conexión con el dispositivo.',
+                                    position: 'bottom'
+                                });
+
+                                router.replace('/');
+
+                            }
+                        } catch (error: any) {
+
+                            alert.dismiss();
+
+                            await Toast.show({
+                                text: error.message,
+                                position: 'bottom'
+                            });
+
+                            router.replace('/');
+
+                        }
+                    }
+                }
+            ],
+        });
+
+        await alert.present();
+    }
+
+    async function sendPresetToLorawanLowCanal(): Promise<void> {
+        const alert = await alertController.create({
+            header: 'LORAWAN CANAL BAJO',
+            subHeader: 'modificar canal BAJO',
+            message: 'rango de 0 - 63',
+            inputs: [
+                {
+                    name: 'value',
+                    placeholder: editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_BAJO')?.data,
+                    label: 'nuevo valor',
+                    type: 'number'
+                }
+            ],
+            buttons: [
+                {
+                    text: 'Cancel',
+                    role: 'cancel'
+                },
+                {
+                    text: 'Ok',
+                    handler: async (alertData) => {
+
+                        try {
+
+                            if (await isConnected(DEVICE_ID)) {
+
+                                if (validateWriteValue(LOW_LIMIT, LORAWAN_CANAL_LIMIT, alertData.value)) {
+
+                                    const lowCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_LOW') as Register;
+
+                                    const highCanal = editableRegisters.value.find(r => r.name == 'LORAWAN_CANAL_HIGH') as Register;
+
+                                    const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_CANAL_ADDRESS), [highCanal.data, parseInt(alertData.value)]);
+
+                                    const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+
+                                    const data = new Uint8Array(response.buffer).slice(7, 9);
+
+                                    highCanal.data = data[0]; //high
+
+                                    lowCanal.data = data[1]; //low
+
+                                } else {
+
+                                    alert.message = 'Valor invalido!';
+                                    return false;
+                                }
+
+
+                            } else {
+
+                                alert.dismiss();
+
+                                await Toast.show({
+                                    text: 'Se perdio la conexión con el dispositivo',
+                                    position: 'bottom'
+                                });
+
+                                router.replace('/');
+
+                            }
+                        } catch (error: any) {
+
+                            alert.dismiss();
+
+                            await Toast.show({
+                                text: error.message,
+                                position: 'bottom'
+                            });
+
+                            router.replace('/');
+
+                        }
+                    }
+                }
+            ],
+        });
 
     }
 
@@ -145,32 +316,101 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
                     text: 'Automatico',
                     handler: async () => {
 
-                        const automaticValue = 255;
+                        try {
 
-                        const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_DATA_RATE_ADDRESS), toByteArray(automaticValue));
+                            if (await isConnected(DEVICE_ID)) {
 
-                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+                                const automaticValue = 255;
 
-                        const data = new Uint8Array(response.buffer).slice(7, 9);
+                                const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_DATA_RATE_ADDRESS), toByteArray(automaticValue));
 
-                        const register = editableRegisters.value.find(r => r.name == 'LORAWAN_DATA_RATE') as Register;
+                                const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
 
-                        register.data = _parseData(data);
+                                const data = new Uint8Array(response.buffer).slice(7, 9);
+
+                                const register = editableRegisters.value.find(r => r.name == 'LORAWAN_DATA_RATE') as Register;
+
+                                register.data = _parseData(data);
+
+                            } else {
+
+                                alert.dismiss();
+
+                                await Toast.show({
+                                    text: 'Se perdio la conexión con el dispositivo',
+                                    position: 'bottom'
+                                });
+
+                                router.replace('/');
+
+                            }
+                        } catch (error: any) {
+
+                            alert.dismiss();
+
+                            await Toast.show({
+                                text: error.message,
+                                position: 'bottom'
+                            });
+
+                            router.replace('/');
+
+                        }
+
                     }
                 },
                 {
                     text: 'Ok',
                     handler: async (alertData) => {
 
-                        const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_DATA_RATE_ADDRESS), toByteArray(parseInt(alertData.value)));
+                        try {
 
-                        const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+                            if (await isConnected(DEVICE_ID)) {
 
-                        const data = new Uint8Array(response.buffer).slice(7, 9);
+                                if (validateWriteValue(LOW_LIMIT, DATA_RATE_LIMIT, alertData.value)) {
 
-                        const register = editableRegisters.value.find(r => r.name == 'LORAWAN_DATA_RATE') as Register;
+                                    const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(LORAWAN_DATA_RATE_ADDRESS), toByteArray(parseInt(alertData.value)));
 
-                        register.data = _parseData(data);
+                                    const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+
+                                    const data = new Uint8Array(response.buffer).slice(7, 9);
+
+                                    const register = editableRegisters.value.find(r => r.name == 'LORAWAN_DATA_RATE') as Register;
+
+                                    register.data = _parseData(data);
+
+                                } else {
+
+                                    alert.message = 'Valor invalido!';
+                                    return false;
+
+                                }
+
+                            } else {
+
+                                alert.dismiss();
+
+                                await Toast.show({
+                                    text: 'Se perdio la conexión con el dispositivo',
+                                    position: 'bottom'
+                                });
+
+                                router.replace('/');
+                            }
+
+                        } catch (error: any) {
+
+                            alert.dismiss();
+
+                            await Toast.show({
+                                text: error.message,
+                                position: 'bottom'
+                            });
+
+                            router.replace('/');
+
+                        }
+
                     }
                 }
             ],
@@ -179,17 +419,83 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
         await alert.present();
     }
 
-    async function writeReportInterval(value: string): Promise<void> {
-        try {
+    async function sendPresetToReportInterval(): Promise<void> {
+        const alert = await alertController.create({
+            header: 'REPORT_INTERVAL',
+            subHeader: 'modificar intervalo de reportes',
+            message: 'rango 0 - 65535 SEGUNDOS',
+            inputs: [
+                {
+                    name: 'value',
+                    placeholder: editableRegisters.value.find(r => r.name == 'REPORT_INTERVAL')?.data,
+                    label: 'nuevo valor',
+                    type: 'number'
+                }
+            ],
+            buttons: [
+                {
+                    text: 'Cancel',
+                    role: 'cancel'
+                },
+                {
+                    text: 'Ok',
+                    handler: async (alertData) => {
 
-            const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), toByteArray(parseInt(value)));
+                        try {
 
-            await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+                            if (await isConnected(DEVICE_ID)) {
 
-        } catch (error: any) {
+                                if (validateWriteValue(LOW_LIMIT, REPORT_INTERVAL_LIMIT, alertData.value)) {
 
-            throw new Error(error.message);
-        }
+                                    const dataFrame = presetDataFrame(DEVICE_NAME, toByteArray(REPORT_INTERVAL_ADDRESS), toByteArray(parseInt(alertData.value)));
+
+                                    const response = await writeToCharacteristicAndWaitForResponse(DEVICE_ID, SERVICE_UUID_CHAR, WRITE_UUID_CHAR, NOTIFICATION_UUID_CHAR, dataFrame);
+
+                                    const data = new Uint8Array(response.buffer).slice(7, 9);
+
+                                    const register = editableRegisters.value.find(r => r.name == 'REPORT_INTERVAL') as Register;
+
+                                    register.data = _parseData(data);
+                                
+                                } else {
+
+                                    alert.message = 'Valor invalido!';
+                                    return false;
+
+                                } 
+
+                            } else {
+
+                                alert.dismiss();
+
+                                await Toast.show({
+                                    text: 'Se perdio la conexión con el dispositivo.',
+                                    position: 'bottom'
+                                });
+
+                                router.replace('/');
+
+                            }
+
+                        } catch (error: any) {
+
+                            alert.dismiss();
+
+                            await Toast.show({
+                                text: error.message,
+                                position: 'bottom'
+                            });
+
+                            router.replace('/');
+
+                        }
+
+                    }
+                }
+            ],
+        });
+
+        await alert.present();
     }
 
     function _parseData(bytes: Uint8Array): number {
@@ -200,17 +506,22 @@ export function useEyesOnPT(DEVICE_ID: string, DEVICE_NAME: string) {
 
         try {
 
-            await connect(DEVICE_ID);
+            const registers = await sendReadHoldingToEditableRegisters();
 
-            await sendReadHoldingToEditableRegisters();
+            const devEuiValue = await sendReadHoldingToDevEui();
 
-            await sendReadHoldingToDevEui();
+            editableRegisters.value.push(...registers);
+
+            devEui.value = devEuiValue;
 
         } catch (error: any) {
 
-            console.log('anashie');
+            await Toast.show({
+                text: 'Error al leer registros.',
+                position: 'bottom'
+            });
 
-            showError(error);
+            router.replace('/');
 
         }
 

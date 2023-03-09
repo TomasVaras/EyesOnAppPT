@@ -13,7 +13,8 @@
         <ion-item v-for="res in results" :key="res.device.deviceId">
           <ion-label>
             <h1>{{ res.device.name }}</h1>
-            <p>{{ bytesToPSI(res.manufacturerData!['0'].buffer) + ' psi'/*mepa que es asi*/ }}</p>
+            <p>presión: {{ bytesToPSI(res.manufacturerData!['0'].buffer) + ' psi'/*mepa que es asi*/ }}</p>
+            <p>carga de bateria: {{ batteryCharge(res.manufacturerData!['0'].buffer) }} volts</p>
           </ion-label>
           <ion-button :href="`/sensor/registers/${res.device.name}/${res.device.deviceId}`">
             <ion-icon :icon="arrowForward"></ion-icon> 
@@ -63,12 +64,14 @@ import {
 import { useBle } from '@/composables/useBle';
 import { /*bluetooth, open, close,*/ search, arrowForward } from 'ionicons/icons';
 import { useRoute } from 'vue-router';
-//import { onMounted } from 'vue';
 const route = useRoute();
 
 const {
   scan,
   bytesToPSI,
+  batteryCharge,
+  disconnect,
+  avaliableDevicesStates,
   results,
   isScanning,
 } = useBle();
